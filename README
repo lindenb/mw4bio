@@ -1,4 +1,21 @@
-MediaWiki Extensions for Bioinformatics.
 
-Pierre Lindenbaum PhD
-plindenbaum@yahoo.fr
+                    MediaWiki Extensions for Bioinformatics.
+
+Author:
+	Pierre Lindenbaum PhD
+Mail:
+	plindenbaum@yahoo.fr
+WWW:
+	http://plindenbaum.blogpsot.com
+
+
+MWNCBI
+	Is a set of custom tags fetching asynchronously some records (gene, snp, pubmed)
+	from the NCBI.
+	Example:
+
+		<ncbigene id="112"/>
+		<ncbisnp id="25"/>
+		<ncbipubmed id="20686574"/>
+
+	see extensions/mwncbi/INSTALL.txt
