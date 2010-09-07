@@ -29,7 +29,6 @@ import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 /**
@@ -60,6 +59,13 @@ public class LocalWikiGene
     private String pathToGene2XML="gene2xml";
     private String geneAsAsn="gene.ags";
     private String mwApiUrl="http://localhost/api.php";
+    /** prefix of the Template: pages */
+    private String templatePrefix="Gene";
+    /** shall we create an article if it doesn't exist ? */
+    private boolean createArticle=false;
+    private String articleNamespace="";
+    
+    /** 
     
     /** XML document builder */
     private DocumentBuilder domBuilder=null;
@@ -181,7 +187,8 @@ public class LocalWikiGene
         Templates templates=trFactory.newTemplates(new StreamSource(xslIn));
         xslIn.close();
         Transformer transform=templates.newTransformer();
-
+        transform.setParameter("templatePrefix",this.templatePrefix);
+        transform.setParameter("ns",this.articleNamespace);
 
         XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
         xmlInputFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
@@ -240,7 +247,7 @@ public class LocalWikiGene
             PostMethod postMethod=new PostMethod(this.mwApiUrl);
             postMethod.addParameter("action", "query");
             postMethod.addParameter("intoken", "edit");
-            postMethod.addParameter("titles", "Template:Gene"+locus);
+            postMethod.addParameter("titles", "Template:"+this.templatePrefix+locus);
             postMethod.addParameter("prop", "info");
             postMethod.addParameter("format", "xml");
 
@@ -257,27 +264,55 @@ public class LocalWikiGene
             String starttimestamp=page.getAttribute("starttimestamp");
             String edittoken=page.getAttribute("edittoken");
            
-           
+            this.postNewArticle(
+            		"Template:"+this.templatePrefix+locus,
+            		"bot creating template for Gene "+locus,
+            		edittoken,
+            		starttimestamp,
+            		sw.toString()
+            		);
 
 
-            postMethod=new PostMethod(this.mwApiUrl);
-            postMethod.addParameter("action", "edit");
-            postMethod.addParameter("format", "xml");
-            postMethod.addParameter("title", "Template:Gene"+locus);
-            postMethod.addParameter("summary", "bot creating "+locus);
-            postMethod.addParameter("text", sw.toString());
-            postMethod.addParameter("bot", "true");
-            postMethod.addParameter("token", edittoken);
-            postMethod.addParameter("starttimestamp", starttimestamp);
-            postMethod.addParameter("md5",DigestUtils.md5Hex(sw.toString()));
-            this.client.executeMethod(postMethod);
-            inMW=postMethod.getResponseBodyAsStream();
-            result = this.domBuilder.parse(inMW);
-            inMW.close();
-            postMethod.releaseConnection();
+            
 
-            System.err.println(result);
-
+            //shall we create the page ?
+            if(this.createArticle)
+            	 {
+            	 //check article doesn't exists
+            	 postMethod=new PostMethod(this.mwApiUrl);
+                 postMethod.addParameter("action", "query");
+                 postMethod.addParameter("intoken", "edit");
+                 postMethod.addParameter("titles",
+                		 (articleNamespace.isEmpty()?"":articleNamespace+":")
+                		 +locus);
+                 postMethod.addParameter("prop", "info");
+                 postMethod.addParameter("format", "xml");
+                 this.client.executeMethod(postMethod);
+                 inMW=postMethod.getResponseBodyAsStream();
+                 result = this.domBuilder.parse(inMW);
+                 inMW.close();
+                 postMethod.releaseConnection();
+                 pages=(NodeList)this.xpath.evaluate("/api/query/pages/page",result,XPathConstants.NODESET);
+                 page=(Element)pages.item(0);
+                 if(page.getAttributeNode("missing")==null)
+                	 {
+                	 starttimestamp=page.getAttribute("starttimestamp");
+                     edittoken=page.getAttribute("edittoken");
+                	 
+                	 //ok, page does not exist, create it
+                	 String article="{{"+this.templatePrefix+locus+"}}";
+                	 
+                     this.postNewArticle(
+                     		(articleNamespace.isEmpty()?"":articleNamespace+":")+locus,
+                     		"bot creating article for Gene "+locus,
+                     		edittoken,
+                     		starttimestamp,
+                     		article
+                     		);
+                	 }
+            	 }
+            
+            
             break;//TODO
             }
         reader.close();
@@ -286,6 +321,38 @@ public class LocalWikiGene
 
         logout();
         }
+    
+    private void postNewArticle(
+    	String title,
+    	String summary,
+    	String editToken,
+    	String starttimestamp,
+    	String text
+    	) throws IOException,SAXException,XPathExpressionException
+    	{
+    	PostMethod postMethod=new PostMethod(this.mwApiUrl);
+        postMethod.addParameter("action", "edit");
+        postMethod.addParameter("format", "xml");
+        postMethod.addParameter("title", title);
+        postMethod.addParameter("summary", summary);
+        postMethod.addParameter("text", text);
+        postMethod.addParameter("bot", "true");
+        postMethod.addParameter("token", editToken);
+        postMethod.addParameter("starttimestamp", starttimestamp);
+        postMethod.addParameter("md5",DigestUtils.md5Hex(text));
+        this.client.executeMethod(postMethod);
+        InputStream inMW=postMethod.getResponseBodyAsStream();
+        Document dom = this.domBuilder.parse(inMW);
+        inMW.close();
+        postMethod.releaseConnection();
+        String result= this.xpath.evaluate("/api/edit/@result", dom);
+        if(result==null) result="";
+        if(!result.equals("Success"))
+        	{
+        	throw new IOException("Inserting "+title+" failed . result was "+result);
+        	}
+    	}
+    
 	public static void main(String[] args) {
 		try
 			{
@@ -304,7 +371,10 @@ public class LocalWikiGene
 					System.err.println(" -p <user.password> (or asked later on command line)");
 					System.err.println(" -a <api.url> e.g. http://en.wikipedia.org/w/api.php");
 					System.err.println(" -g <path to gene2xml> default: "+app.pathToGene2XML);
-					System.err.println(" -n <path to gene.ags> default: "+app.geneAsAsn);
+					System.err.println(" -s <path to gene.ags> default: "+app.geneAsAsn);
+					System.err.println(" -ns <article namespace> default:none (Main namespace)");
+					System.err.println(" -t <template prefix> default: "+app.templatePrefix );
+					System.err.println(" -c create article if it doesn't exist default: "+app.createArticle );
 					return;
 					}
 				else if(args[optind].equals("-u"))
@@ -323,9 +393,21 @@ public class LocalWikiGene
 					{
 					app.pathToGene2XML=args[++optind];
 					}
-				else if(args[optind].equals("-n"))
+				else if(args[optind].equals("-s"))
 					{
 					app.geneAsAsn=args[++optind];
+					}
+				else if(args[optind].equals("-ns"))
+					{
+					app.articleNamespace=args[++optind];
+					}
+				else if(args[optind].equals("-t"))
+					{
+					app.templatePrefix=args[++optind];
+					}
+				else if(args[optind].equals("-c"))
+					{
+					app.createArticle=true;
 					}
 				else if(args[optind].equals("--"))
 					{

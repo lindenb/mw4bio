@@ -64,7 +64,10 @@ Motivation:
 <xsl:text>
 </xsl:text>
 <xsl:apply-templates select="Entrezgene_comments/Gene-commentary[Gene-commentary_heading='Interactions']" mode="ppi"/>
-<xsl:apply-templates select="Entrezgene_properties/Gene-commentary[Gene-commentary_heading='GeneOntology']" mode="go"/></includeonly><noinclude>This is a [http://www.mediawiki.org/wiki/Help:Templates template] for the NCBI gene '''<xsl:value-of select="$locus"/>''' ID.<xsl:value-of select="$geneId"/>. To use this template insert <br/><span style="background-color:black; color:white; font-size:150%;"><nowiki>{{<xsl:value-of select="concat($templatePrefix,$locus)"/>}}</nowiki></span><br/> in body of the article.
+<xsl:apply-templates select="Entrezgene_properties/Gene-commentary[Gene-commentary_heading='GeneOntology']" mode="go"/>
+<xsl:text>
+[[Category:Ncbi genes]]</xsl:text>
+</includeonly><noinclude>This is a [http://www.mediawiki.org/wiki/Help:Templates template] for the NCBI gene '''<xsl:value-of select="$locus"/>''' ID.<xsl:value-of select="$geneId"/>. To use this template insert <br/><span style="background-color:black; color:white; font-size:150%;"><nowiki>{{<xsl:value-of select="concat($templatePrefix,$locus)"/>}}</nowiki></span><br/> in body of the article.
 An article about '''<xsl:value-of select="$locus"/>''' should be located at :[[<xsl:value-of select="concat($nsPrefix,$locus)"/>|<xsl:value-of select="$locus"/>]]
 
 [[Category:Ncbi gene templates]]</noinclude>
@@ -106,7 +109,7 @@ An article about '''<xsl:value-of select="$locus"/>''' should be located at :[[<
 
 <xsl:template match="Gene-ref_db">
 <xsl:call-template name="DT"/>
-<xsl:text>Related</xsl:text>>
+<xsl:text>Related</xsl:text>
 <xsl:call-template name="DD"/><xsl:apply-templates select="Dbtag"/>
 </xsl:template>
 
