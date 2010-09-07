@@ -40,17 +40,16 @@ Motivation:
 <includeonly>
 <div style="width: 500px; background-color: lightgray; padding: 10px; margin: 10px; border: 1px solid darkgray; float: right; -moz-box-shadow: 6px 6px 6px gray;box-shadow: 6px 6px 6px gray;">
 <dl>
-<xsl:call-template name="DT"/>
-<xsl:text>NCBI GeneID</xsl:text>
-<xsl:call-template name="DD"/><xsl:value-of select="$geneId"/>
-<xsl:call-template name="DT"/><xsl:text>Official Symbol</xsl:text>
-<xsl:call-template name="DD"/>
+<dt><xsl:text>NCBI GeneID</xsl:text></dt>
+<dd><xsl:value-of select="$geneId"/></dd>
+<dt><xsl:text>Official Symbol</xsl:text></dt>
+<dd>
 <xsl:text>[</xsl:text>
 <xsl:value-of select="concat('http://www.ncbi.nlm.nih.gov/gene/',$geneId)"/>
 <xsl:text> </xsl:text>
 <xsl:value-of select="$locus"/>
-<xsl:text>]
-</xsl:text>
+<xsl:text>]</xsl:text>
+</dd>
 <xsl:apply-templates select="Entrezgene_gene"/>
 <xsl:apply-templates select="Entrezgene_source"/>
 </dl>
@@ -83,34 +82,29 @@ An article about '''<xsl:value-of select="$locus"/>''' should be located at :[[<
 </xsl:template>
 
 <xsl:template match="Gene-ref_desc">
-<xsl:call-template name="DT"/>
-<xsl:text>Full Name</xsl:text>
-<xsl:call-template name="DD"/>
-<xsl:value-of select="."/>
+<dt><xsl:text>Full Name</xsl:text></dt>
+<dd><xsl:value-of select="."/></dd>
 </xsl:template>
 
 <xsl:template match="Gene-ref_maploc">
-<xsl:call-template name="DT"/>
-<xsl:text>Location</xsl:text>
-<xsl:call-template name="DD"/>
-<xsl:value-of select="."/>
+<dt><xsl:text>Location</xsl:text></dt>
+<dd><xsl:value-of select="."/></dd>
 </xsl:template>
 
 <xsl:template match="Gene-ref_syn">
-<xsl:call-template name="DT"/><xsl:text>Other Names</xsl:text>
-<xsl:call-template name="DD"/><xsl:for-each select="Gene-ref_syn_E">
+<dt><xsl:text>Other Names</xsl:text></dt>
+<dd><xsl:for-each select="Gene-ref_syn_E">
 <xsl:if test="position()&gt;1">
 <xsl:text>, </xsl:text>
 </xsl:if>
 <xsl:value-of select="."/>
-</xsl:for-each>
+</xsl:for-each></dd>
 </xsl:template>
 
 
 <xsl:template match="Gene-ref_db">
-<xsl:call-template name="DT"/>
-<xsl:text>Related</xsl:text>
-<xsl:call-template name="DD"/><xsl:apply-templates select="Dbtag"/>
+<dt><xsl:text>Related</xsl:text></dt>
+<dd><xsl:apply-templates select="Dbtag"/></dd>
 </xsl:template>
 
 <xsl:template match="Dbtag[Dbtag_db='HGNC']">
@@ -173,13 +167,13 @@ An article about '''<xsl:value-of select="$locus"/>''' should be located at :[[<
 </xsl:template>
 
 <xsl:template match="Org-ref_taxname">
-<xsl:call-template name="DT"/><xsl:text>Organism</xsl:text>
-<xsl:call-template name="DD"/><xsl:value-of select="."/>
+<dt><xsl:text>Organism</xsl:text></dt>
+<dd><xsl:value-of select="."/></dd>
 </xsl:template>
 
 <xsl:template match="OrgName_lineage">
-<xsl:call-template name="DT"/><xsl:text>Lineage</xsl:text>
-<xsl:call-template name="DD"/><xsl:value-of select="."/>
+<dt><xsl:text>Lineage</xsl:text></dt>
+<dd><xsl:value-of select="."/></dd>
 </xsl:template>
 
 
@@ -229,12 +223,5 @@ An article about '''<xsl:value-of select="$locus"/>''' should be located at :[[<
 </xsl:template>
 
 
-<xsl:template name="DT">
-<xsl:text disable-output-escaping="yes">&lt;dt&gt;</xsl:text>
-</xsl:template>
-
-<xsl:template name="DD">
-<xsl:text disable-output-escaping="yes">&lt;dd&gt;</xsl:text>
-</xsl:template>
 
 </xsl:stylesheet>

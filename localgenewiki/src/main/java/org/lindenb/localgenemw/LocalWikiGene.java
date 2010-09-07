@@ -181,7 +181,7 @@ public class LocalWikiGene
         {
         login();
 
-        InputStream xslIn=LocalWikiGene.class.getResourceAsStream("gene2template.xsl");
+        InputStream xslIn=LocalWikiGene.class.getResourceAsStream("/META-INF/gene2wiki.xsl");
         if(xslIn==null) throw new IOException("cannot get xsl");
         TransformerFactory trFactory=TransformerFactory.newInstance();
         Templates templates=trFactory.newTemplates(new StreamSource(xslIn));
@@ -311,8 +311,6 @@ public class LocalWikiGene
                      		);
                 	 }
             	 }
-            
-            
             break;//TODO
             }
         reader.close();
