@@ -1,10 +1,29 @@
+/**
+ *
+ * LocalWikiGene
+ * 
+ * Author:
+ * 		Pierre Lindenbaum PhD
+ * Mail:
+ *		plindenbaum@yahoo.fr
+ * WWW:
+ * 		http://plindenbaum.blogspot.com
+ */
 package org.lindenb.localgenemw;
 
+import java.io.BufferedReader;
 import java.io.Console;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -53,41 +72,57 @@ CD24    CD24 molecule
  */
 public class LocalWikiGene
     {
+    /** logger */
+    private static Logger LOG=Logger.getLogger(LocalWikiGene.class.getName());
+    /** Apche Http Client */
     private HttpClient client=new HttpClient();
+    /** mediawiki login */
     private String mwLogin=null;
+    /** mediawiki password */
     private String mwPassword=null;
+    /** path to gene2xml executable  */
     private String pathToGene2XML="gene2xml";
+    /** genes as ASN.1 */
     private String geneAsAsn="gene.ags";
+    /** MW API URL */
     private String mwApiUrl="http://localhost/api.php";
     /** prefix of the Template: pages */
     private String templatePrefix="Gene";
     /** shall we create an article if it doesn't exist ? */
     private boolean createArticle=false;
+    /** namespace for articles */
     private String articleNamespace="";
-    
-    /** 
-    
     /** XML document builder */
     private DocumentBuilder domBuilder=null;
     /** XPATH processor */
     private XPath xpath=null;
+    /** exclude list */
+    private Set<String> excludeList=null;
+    /** include list */
+    private Set<String> includeList=null;
+    /** alternate XSLT stylesheet */
+    private File altXsltStylesheet=null;
     
+    /** constructor */
     private LocalWikiGene()
     throws Exception
 	    {
+	    //build the XML builder
 	    DocumentBuilderFactory fact=DocumentBuilderFactory.newInstance();
 	    fact.setNamespaceAware(false);
 	    fact.setCoalescing(true);
 	    fact.setIgnoringComments(true);
 	    fact.setIgnoringElementContentWhitespace(true);
 	    this.domBuilder=fact.newDocumentBuilder();
-	    
+	    //build the xpath processor
 	    XPathFactory xf=XPathFactory.newInstance();
 	    this.xpath=xf.newXPath();
 	    }
     
+    /** get credentials from mediawiki */
     private void login() throws IOException,SAXException,XPathExpressionException
         {
+        LOG.info("logging as "+this.mwLogin);
         String mwToken=null;
         while(true)
             {
@@ -98,6 +133,7 @@ public class LocalWikiGene
             postMethod.addParameter("format", "xml");
             if(mwToken!=null)
                 {
+                LOG.info("using mwToken "+mwToken);
                 postMethod.addParameter("lgtoken",mwToken);
                 }
             this.client.executeMethod(postMethod);
@@ -109,7 +145,7 @@ public class LocalWikiGene
             mwToken = this.xpath.evaluate("/api/login/@token",dom);
             String result= this.xpath.evaluate("/api/login/@result",dom);
             if(result==null) result="";
-            
+            LOG.info("server says "+result);
             if(result.equals("Success"))
             	{
             	break;
@@ -128,6 +164,7 @@ public class LocalWikiGene
             }
         }
 
+    /** log off from mediawiki */
     private void logout() throws IOException,SAXException
         {
         PostMethod postMethod=new PostMethod(this.mwApiUrl);
@@ -138,9 +175,10 @@ public class LocalWikiGene
         this.domBuilder.parse(in);
         in.close();
         postMethod.releaseConnection();
+        LOG.info("logged out");
         }
 
-
+    /** parse Gene doc */
     private void parseDoc(
             XMLEventReader reader,
             Document dom,
@@ -175,14 +213,26 @@ public class LocalWikiGene
 
 
     
-
+    /** let's do the job */
     private void run()
         throws Exception
         {
         login();
 
-        InputStream xslIn=LocalWikiGene.class.getResourceAsStream("/META-INF/gene2wiki.xsl");
+        // create XSLT factory and et XSLT stylesheet
+        InputStream xslIn=null;
+        if(this.altXsltStylesheet!=null)
+        	{
+        	LOG.info("reading alt stylesheet "+this.altXsltStylesheet);
+        	xslIn=new FileInputStream(this.altXsltStylesheet);
+        	}
+        else
+        	{
+        	LOG.info("reading /META-INF/gene2wiki.xsl");
+        	xslIn=LocalWikiGene.class.getResourceAsStream("/META-INF/gene2wiki.xsl");
+        	}
         if(xslIn==null) throw new IOException("cannot get xsl");
+
         TransformerFactory trFactory=TransformerFactory.newInstance();
         Templates templates=trFactory.newTemplates(new StreamSource(xslIn));
         xslIn.close();
@@ -190,6 +240,7 @@ public class LocalWikiGene
         transform.setParameter("templatePrefix",this.templatePrefix);
         transform.setParameter("ns",this.articleNamespace);
 
+        //create xml stream factory
         XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
         xmlInputFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
         xmlInputFactory.setProperty(XMLInputFactory.IS_COALESCING, Boolean.TRUE);
@@ -197,51 +248,64 @@ public class LocalWikiGene
         
 
       
-        
+        //create XPATH expressions
         XPathExpression idExpr=xpath.compile("/Entrezgene/Entrezgene_track-info/Gene-track/Gene-track_geneid");
         XPathExpression locusExpr=xpath.compile("/Entrezgene/Entrezgene_gene/Gene-ref/Gene-ref_locus");
         XPathExpression descExpr=xpath.compile("/Entrezgene/Entrezgene_gene/Gene-ref/Gene-ref_desc");
         XPathExpression refGeneExpr=xpath.compile("/Entrezgene/Entrezgene_locus/Gene-commentary/Gene-commentary_products/Gene-commentary[Gene-commentary_heading='Reference']/Gene-commentary_accession");
         XPathExpression ensemblExpr=xpath.compile("/Entrezgene/Entrezgene_gene/Gene-ref/Gene-ref_db/Dbtag[Dbtag_db='Ensembl']/Dbtag_tag/Object-id/Object-id_str");
 
+        //call NCBI gene2xml
         Process proc=Runtime.getRuntime().exec(new String[]{
         		this.pathToGene2XML,
                 "-b",//asn1 is binary
                 "-i",this.geneAsAsn //ASN.1 input
                 });
+        //read input as XML stream
         InputStream in=proc.getInputStream();
         XMLEventReader reader= xmlInputFactory.createXMLEventReader(in);
         while(reader.hasNext())
             {
             XMLEvent evt=reader.nextEvent();
             if(!evt.isStartElement()) continue;
+            //it is a gene
             if(!evt.asStartElement().getName().getLocalPart().equals("Entrezgene")) continue;
             Document dom=this.domBuilder.newDocument();
             Element root=dom.createElement("Entrezgene");
             dom.appendChild(root);
+            //get the whole record as DOM
             parseDoc(reader,dom,root);
-
+            
+            //get locus name with xpath
             String locus=(String)locusExpr.evaluate(root, XPathConstants.STRING);
+            //should we ignore it ?
+            if( (this.includeList!=null && !this.includeList.contains(locus)) ||
+            	(this.excludeList!=null && this.excludeList.contains(locus))		
+            	)
+            	{
+            	LOG.info("ignore "+locus);
+            	continue;
+            	}
             String ensembl=(String)ensemblExpr.evaluate(root, XPathConstants.STRING);
             String refGene=(String)refGeneExpr.evaluate(root, XPathConstants.STRING);
 
-            System.out.print(idExpr.evaluate(root, XPathConstants.STRING));
-            System.out.print("\t");
-            System.out.print(locus);
-            System.out.print("\t");
-            System.out.print(descExpr.evaluate(root, XPathConstants.STRING));
-            System.out.print("\t");
-            System.out.print(ensembl);
-            System.out.print("\t");
-            System.out.println(refGene);
-
+            
+            LOG.info(
+        		"ID:"+idExpr.evaluate(root, XPathConstants.STRING)+
+        		"\t"+locus+
+        		"\t"+descExpr.evaluate(root, XPathConstants.STRING)+
+        		"\t"+ensembl+
+        		"\t"+refGene
+        		);
+            
             if(ensembl.length()==0 && refGene.length()==0)
                 {
-                System.err.println("BOUM");
+                System.err.println("??BOUM");
                 }
             StringWriter sw=new StringWriter();
             transform.transform(new DOMSource(dom), new StreamResult(sw));
             
+            //cleanup
             System.gc();
 
             PostMethod postMethod=new PostMethod(this.mwApiUrl);
@@ -271,9 +335,6 @@ public class LocalWikiGene
             		starttimestamp,
             		sw.toString()
             		);
-
-
-            
 
             //shall we create the page ?
             if(this.createArticle)
@@ -311,7 +372,6 @@ public class LocalWikiGene
                      		);
                 	 }
             	 }
-            break;//TODO
             }
         reader.close();
         in.close();
@@ -320,6 +380,7 @@ public class LocalWikiGene
         logout();
         }
     
+    /** post new article to mediawiki */
     private void postNewArticle(
     	String title,
     	String summary,
@@ -351,9 +412,29 @@ public class LocalWikiGene
         	}
     	}
     
+    private static Set<String> readLocusList(String filename)
+    	throws IOException
+    	{
+    	Set<String> set=new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+    	BufferedReader in=new BufferedReader(new FileReader(filename));
+    	String line;
+    	while((line=in.readLine())!=null)
+    		{
+    		line=line.trim();
+    		if(line.isEmpty()) continue;
+     		set.add(line);
+    		}
+    	in.close();
+    	return set;
+    	}
+    
+    /** main */
 	public static void main(String[] args) {
 		try
 			{
+			String excludeFile=null;
+			String includeFile=null;
+			LOG.setLevel(Level.OFF);
 			LocalWikiGene app= new LocalWikiGene();
 			int optind=0;
 			while(optind< args.length)
@@ -373,7 +454,15 @@ public class LocalWikiGene
 					System.err.println(" -ns <article namespace> default:none (Main namespace)");
 					System.err.println(" -t <template prefix> default: "+app.templatePrefix );
 					System.err.println(" -c create article if it doesn't exist default: "+app.createArticle );
+					System.err.println(" -X <file> reads a file containing a list of locuses to be excluded. (optional)");
+					System.err.println(" -i <file> reads a file containing the only list of accepted locuses. (optional)");
+					System.err.println(" -y <file> reads an alternat xslt stylesheet. (optional)");
+					System.err.println(" -debug turns debug on. (optional)");
 					return;
+					}
+				else if(args[optind].equals("-debug"))
+					{
+					LOG.setLevel(Level.ALL);
 					}
 				else if(args[optind].equals("-u"))
 					{
@@ -407,6 +496,18 @@ public class LocalWikiGene
 					{
 					app.createArticle=true;
 					}
+				else if(args[optind].equals("-X"))
+					{
+					excludeFile=args[++optind];
+					}
+				else if(args[optind].equals("-i"))
+					{
+					includeFile=args[++optind];
+					}
+				else if(args[optind].equals("-y"))
+					{
+					app.altXsltStylesheet=new File(args[++optind]);
+					}
 				else if(args[optind].equals("--"))
 					{
 					optind++;
@@ -428,6 +529,21 @@ public class LocalWikiGene
 				System.err.println("Illegal number of arguments.");
 				return;
 				}
+			
+			if(excludeFile!=null && includeFile!=null)
+				{
+				System.err.println("Cannot use both include and exclude lists.");
+				return;
+				}
+			else if(excludeFile!=null)
+				{
+				app.excludeList= readLocusList(excludeFile);
+				}
+			else if(includeFile!=null)
+				{
+				app.includeList= readLocusList(includeFile);
+				}
+			
 			
 			if(app.mwLogin==null || app.mwLogin.isEmpty())
 				{
@@ -453,6 +569,7 @@ public class LocalWikiGene
                 }
 			
 			app.run();
+			LOG.info("Done.");
 			} 
 		catch(Throwable err)
 			{
