@@ -102,6 +102,8 @@ public class LocalWikiGene
     private Set<String> includeList=null;
     /** alternate XSLT stylesheet */
     private File altXsltStylesheet=null;
+    /** use XML file instead of gene2xml */
+    private File xmlGeneAltInput=null;
     
     /** constructor */
     private LocalWikiGene()
@@ -256,13 +258,25 @@ public class LocalWikiGene
         XPathExpression ensemblExpr=xpath.compile("/Entrezgene/Entrezgene_gene/Gene-ref/Gene-ref_db/Dbtag[Dbtag_db='Ensembl']/Dbtag_tag/Object-id/Object-id_str");
 
         //call NCBI gene2xml
-        Process proc=Runtime.getRuntime().exec(new String[]{
-        		this.pathToGene2XML,
-                "-b",//asn1 is binary
-                "-i",this.geneAsAsn //ASN.1 input
-                });
-        //read input as XML stream
-        InputStream in=proc.getInputStream();
+        Process proc=null;
+        InputStream in=null;
+        
+        if(this.xmlGeneAltInput!=null)
+        	{
+        	LOG.info("reading "+this.xmlGeneAltInput);
+        	in=new FileInputStream(this.xmlGeneAltInput);
+        	}
+        else
+        	{
+        	LOG.info("calling "+this.pathToGene2XML);
+	        proc=Runtime.getRuntime().exec(new String[]{
+	        		this.pathToGene2XML,
+	                "-b",//asn1 is binary
+	                "-i",this.geneAsAsn //ASN.1 input
+	                });
+	        //read input as XML stream
+	        in=proc.getInputStream();
+        	}
         XMLEventReader reader= xmlInputFactory.createXMLEventReader(in);
         while(reader.hasNext())
             {
@@ -375,8 +389,10 @@ public class LocalWikiGene
             }
         reader.close();
         in.close();
-        proc.destroy();
-
+        if(proc!=null)
+        	{
+        	proc.destroy();
+        	}
         logout();
         }
     
@@ -457,6 +473,7 @@ public class LocalWikiGene
 					System.err.println(" -X <file> reads a file containing a list of locuses to be excluded. (optional)");
 					System.err.println(" -i <file> reads a file containing the only list of accepted locuses. (optional)");
 					System.err.println(" -y <file> reads an alternat xslt stylesheet. (optional)");
+					System.err.println(" -f <gene.xml> use this XML file instead of calling gene2xml (optional)");
 					System.err.println(" -debug turns debug on. (optional)");
 					return;
 					}
@@ -507,6 +524,10 @@ public class LocalWikiGene
 				else if(args[optind].equals("-y"))
 					{
 					app.altXsltStylesheet=new File(args[++optind]);
+					}
+				else if(args[optind].equals("-f"))
+					{
+					app.xmlGeneAltInput=new File(args[++optind]);
 					}
 				else if(args[optind].equals("--"))
 					{
